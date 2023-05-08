@@ -5,14 +5,14 @@ local ffi = require('ffi')
 local inicfg = require('inicfg')
 ffi.cdef('int MessageBoxA(void* hWnd, const char* lpText, const char* lpCaption, unsigned int uType);')
 local _require = require
-local require = function(moduleName, url)
-    local status, module = pcall(_require, moduleName)
-    if status then return module end
-    local response = ffi.C.MessageBoxA(ffi.cast('void*', readMemory(0x00C8CF88, 4, false)), ('Áèáëèîòåêà "%s" íå íàéäåíà.%s'):format(moduleName, url and '\n\nÎòêðûòü ñòðàíèöó çàãðóçêè?' or ''), thisScript().name, url and 4 or 0)
-    if response == 6 then
-        os.execute(('explorer "%s"'):format(url))
-    end
-end
+-- local require = function(moduleName, url)
+--     local status, module = pcall(_require, moduleName)
+--     if status then return module end
+--     local response = ffi.C.MessageBoxA(ffi.cast('void*', readMemory(0x00C8CF88, 4, false)), ('Ð‘Ð¸Ð±Ð»Ð¸Ð¾Ñ‚ÐµÐºÐ° "%s" Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½Ð°.%s'):format(moduleName, url and '\n\nÐžÑ‚ÐºÑ€Ñ‹Ñ‚ÑŒ ÑÑ‚Ñ€Ð°Ð½Ð¸Ñ†Ñƒ Ð·Ð°Ð³Ñ€ÑƒÐ·ÐºÐ¸?' or ''), thisScript().name, url and 4 or 0)
+--     if response == 6 then
+--         os.execute(('explorer "%s"'):format(url))
+--     end
+-- end
 
 
 local imgui = require('mimgui', 'https://www.blast.hk/threads/66959/')
@@ -94,12 +94,13 @@ function save()
     ini.main.presence_penalty = S.presence_penalty[0]
     ini.main.max_tokens = S.max_tokens[0]
     Rooms.save(rooms)
+    inicfg.save(ini, iniFileName)
 end
 
 imgui.OnInitialize(function() 
     imgui.GetIO().IniFilename = nil
     imgui.GetStyle().WindowPadding = imgui.ImVec2(0, 0)
-    imgui.GetStyle().ButtonTextAlign = imgui.ImVec2(0, 0.5)
+    imgui.GetStyle().ButtonTextAlign = imgui.ImVec2(0.5, 0.5)
     imgui.GetStyle().FrameRounding = 3
     imgui.GetStyle().FramePadding = imgui.ImVec2(5, 5)
     imgui.GetStyle().WindowTitleAlign = imgui.ImVec2(0.5, 0.5)
@@ -121,7 +122,7 @@ imgui.OnInitialize(function()
         config.MergeMode = true
         config.PixelSnapH = true
         iconRanges = imgui.new.ImWchar[3](faicons.min_range, faicons.max_range, 0)
-        imgui.GetIO().Fonts:AddFontFromMemoryCompressedBase85TTF(faicons.get_font_data_base85('solid'), 14, config, iconRanges) -- solid - òèï èêîíîê, òàê æå åñòü thin, regular, light è duotone
+        imgui.GetIO().Fonts:AddFontFromMemoryCompressedBase85TTF(faicons.get_font_data_base85('solid'), 14, config, iconRanges) -- solid - Ñ‚Ð¸Ð¿ Ð¸ÐºÐ¾Ð½Ð¾Ðº, Ñ‚Ð°Ðº Ð¶Ðµ ÐµÑÑ‚ÑŒ thin, regular, light Ð¸ duotone
     end
 end)
 
@@ -147,6 +148,7 @@ imgui.OnFrame(
                 imgui.Separator()
                 imgui.Spacing()
                 
+                imgui.PushStyleVarVec2(imgui.StyleVar.ButtonTextAlign, imgui.ImVec2(0, 0.5))
                 if imgui.BeginChild('roomsList', imgui.ImVec2(size.x / 3.5, size.y - imgui.GetCursorPosY() - 60), false) then
                     for index, list in pairs(rooms) do
                         imgui.SetCursorPosX(5)
@@ -170,6 +172,7 @@ imgui.OnFrame(
                     end
                 end
                 imgui.EndChild()
+                imgui.PopStyleVar()
                 imgui.SetCursorPosX(5)
                 if imgui.Button(faicons('gear') .. '##BUTTON_SETTINGS') then
                     imgui.OpenPopup('ChatGPT Settings')
@@ -218,6 +221,12 @@ imgui.OnFrame(
                         imgui.PopStyleColor(3)
                         imgui.SameLine()
                         imgui.TextColored(message.system and imgui.ImVec4(1, 0, 0, 1) or imgui.ImVec4(1, 1, 1, 0.7), message.role == 'assistant' and 'ChatGPT' or (message.system and 'SYSTEM' or 'You'))
+                        imgui.SameLine()
+                        if imgui.TextButton(faicons('copy')) then
+                            setClipboardText(u8:decode(message.content or '_'))
+                            sampAddChatMessage('ChatGPT >> Copied to clipboard!', -1)
+                        end
+
                         imgui.SetCursorPos(imgui.ImVec2(10 + 30 + 5, imgui.GetCursorPosY() - 15))
                         if imgui.BeginChild('message'..index, imgui.ImVec2(imgui.GetWindowWidth() - imgui.GetCursorPosX() - 10, imgui.CalcTextSize(message.content, nil, nil, imgui.GetWindowWidth() - imgui.GetCursorPosX() - 10).y), false)  then
                             imgui.TextWrapped(message.content)
@@ -249,6 +258,19 @@ imgui.OnFrame(
     end
 )
 
+function imgui.TextButton(label)
+    local p = imgui.GetCursorPos()
+    imgui.TextColored(imgui.GetStyle().Colors[imgui.Col.Button], label)
+    -- local p2 = imgui.GetCursorPos()
+    -- if imgui.IsItemHovered() or imgui.IsItemClicked() then
+    --     imgui.SetCursorPos(p)
+    --     imgui.TextColored(imgui.GetStyle().Colors[imgui.IsItemClicked() and imgui.Col.ButtonActive or imgui.Col.ButtonHovered], label)
+    --     imgui.NewLine()
+    --     imgui.SetCursorPos(p2)
+    -- end
+    return imgui.IsItemClicked()
+end
+
 function main()
     while not isSampAvailable() do wait(0) end
     sampRegisterChatCommand('chatgpt', function()
@@ -269,6 +291,7 @@ function sendInput()
         role = 'user',
         content = ffi.string(input)
     })
+    print(encodeJson(rooms[activeRoom]))
     sendToChatGptAsync(rooms[activeRoom], function(response)
         if response.status_code == 200 then
             local decodeStatus, data = pcall(decodeJson, response.text)
@@ -298,8 +321,7 @@ function sendInput()
 
     imgui.StrCopy(input, '')
 end
-
-
+--
 function sendToChatGptAsync(messages, callbackOk, callbackError)
     for k, v in pairs(messages) do
         if v.system then
@@ -311,7 +333,7 @@ function sendToChatGptAsync(messages, callbackOk, callbackError)
             Authorization = 'Bearer '..ffi.string(S.token),
             ['Content-Type'] = 'application/json'
         },
-        data = {
+        data = encodeJson({
             model = ffi.string(S.model),
             messages = messages,
             temperature = S.temperature[0],
@@ -320,7 +342,7 @@ function sendToChatGptAsync(messages, callbackOk, callbackError)
             frequency_penalty = S.frequency_penalty[0],
             presence_penalty = S.presence_penalty[0],
             stop = {'You:'}
-        }
+        })
     }, callbackOk, callbackError)
 end
 
@@ -420,4 +442,5 @@ function asyncHttpRequest(method, url, args, resolve, reject)
         luaHttpHandleThread = lua_thread.create(handleAsyncHttpRequestThread, thread, resolve, reject);
     }
 end
+
 function imgui.Link(link, text) text = text or link;local tSize = imgui.CalcTextSize(text);local p = imgui.GetCursorScreenPos();local DL = imgui.GetWindowDrawList();local col = { 0xFFFF7700, 0xFFFF9900 };if imgui.InvisibleButton("##" .. link, tSize) then os.execute("explorer " .. link) end;local color = imgui.IsItemHovered() and col[1] or col[2];DL:AddText(p, color, text);DL:AddLine(imgui.ImVec2(p.x, p.y + tSize.y), imgui.ImVec2(p.x + tSize.x, p.y + tSize.y), color) end
